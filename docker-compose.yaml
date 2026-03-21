@@ -1,0 +1,33 @@
+services:
+  app:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_DATASOURCE_PASSWORD
+      - SPRING_DATASOURCE_URL
+      - SPRING_DATASOURCE_USERNAME
+      - SPRING_MAIL_USERNAME
+      - SPRING_MAIL_PASSWORD
+      - SPRING_MAIL_HOST
+      - SPRING_MAIL_PORT
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE
+      - ADMIN_EMAIL
+      - ADMIN_PHONE
+      - AUTH_SECRET
+      - AWS_ACCESS_KEY
+      - AWS_SECRET_KEY
+      - AWS_REGION
+      - AWS_S3_ENDPOINT
+      - SPRING_CLOUD_AWS_S3_PATHSTYLEACCESSENABLED
+      - CORS_ORIGINS
+      - S3_BUCKET_NAME
+      - S3_GET_LINK_EXPIRY_MINUTES
+      - S3_UPLOAD_LINK_EXPIRY_MINUTES
+      - APP_BOOTSTRAP_TOKEN
+    ports:
+      - 8080:8080
+    container_name: monolith_app
+    image: monolith:prod
+    restart: unless-stopped

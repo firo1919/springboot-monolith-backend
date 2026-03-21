@@ -1,0 +1,35 @@
+{
+    "name": "Java",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "features": {
+        "ghcr.io/devcontainers/features/java:1": {
+            "version": "25",
+            "installMaven": true,
+            "installGradle": false
+        },
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installOhMyZsh": true,
+            "configureZshAsDefaultShell": true
+        },
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "moby": false,
+            "installDockerBuildx": true
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {},
+            "extensions": [
+                "vscjava.vscode-java-pack",
+                "vmware.vscode-boot-dev-pack",
+                "redhat.vscode-xml",
+                "redhat.vscode-yaml",
+                "ms-azuretools.vscode-docker"
+            ]
+        }
+    },
+    "forwardPorts": [8080],
+    "runArgs": ["--network=monolith_network"],
+    "initializeCommand": "docker network create monolith_network || true",
+    "postCreateCommand": "mvn clean install -DskipTests"
+}

@@ -1,0 +1,49 @@
+{
+    "properties": [
+        {
+            "name": "s3.expiry-days",
+            "type": "java.lang.String",
+            "description": "A description for 's3.expiry-days'"
+        },
+        {
+            "name": "s3.bucket-name",
+            "type": "java.lang.String",
+            "description": "A description for 's3.bucket-name'"
+        },
+        {
+            "name": "s3.upload-link-expiry-minutes",
+            "type": "java.lang.String",
+            "description": "A description for 's3.upload-link-expiry-minutes'"
+        },
+        {
+            "name": "s3.get-link-expiry-minutes",
+            "type": "java.lang.String",
+            "description": "A description for 's3.get-link-expiry-minutes'"
+        },
+        {
+            "name": "auth.secret",
+            "type": "java.lang.String",
+            "description": "A description for 'auth.secret'"
+        },
+        {
+            "name": "cors.origins",
+            "type": "java.lang.String",
+            "description": "A description for 'cors.origins'"
+        },
+        {
+            "name": "app.bootstrap.token",
+            "type": "java.lang.String",
+            "description": "A description for 'app.bootstrap.token'"
+        },
+        {
+            "name": "admin.email",
+            "type": "java.lang.String",
+            "description": "A description for 'admin.email'"
+        },
+        {
+            "name": "admin.phone",
+            "type": "java.lang.String",
+            "description": "A description for 'admin.phone'"
+        }
+    ]
+}

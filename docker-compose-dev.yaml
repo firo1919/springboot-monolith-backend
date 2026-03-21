@@ -1,0 +1,77 @@
+services:
+  sql-studio:
+    image: frectonz/sql-studio:latest
+    container_name: sqlstudio_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3030:3030"
+    command: >
+      /bin/sql-studio
+      --no-browser
+      --no-shutdown
+      --address=0.0.0.0:3030
+      postgres
+      postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/$POSTGRES_DB
+
+  postgres:
+    image: "postgres:18"
+    environment:
+      - POSTGRES_DB
+      - POSTGRES_PASSWORD
+      - POSTGRES_USER
+    volumes:
+      - monolith_db_data:/var/lib/postgresql/18/data
+    ports:
+      - 5432:5432
+    container_name: monolith_postgres_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: monolith_mailhog_app
+    ports:
+      - 1025:1025
+      - 8025:8025
+
+  rustfs:
+    security_opt:
+      - "no-new-privileges:true"
+    image: rustfs/rustfs:latest
+    container_name: monolith-rustfs-server
+    ports:
+      - "9000:9000" # S3 API port
+      - "9001:9001" # Console port
+    environment:
+      - RUSTFS_ACCESS_KEY=$AWS_ACCESS_KEY
+      - RUSTFS_SECRET_KEY=$AWS_SECRET_KEY
+    volumes:
+      - rustfs-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "curl -f http://127.0.0.1:9000/health && curl -f http://127.0.0.1:9001/rustfs/console/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  monolith_db_data:
+  rustfs-data:
+
+networks:
+  default:
+    name: monolith_network
+    external: true
