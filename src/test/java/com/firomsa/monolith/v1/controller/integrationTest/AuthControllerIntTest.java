@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
+import com.firomsa.monolith.config.BootstrapConfig;
 import com.firomsa.monolith.repository.ConfirmationOtpRepository;
 import com.firomsa.monolith.repository.RefreshTokenRepository;
 import com.firomsa.monolith.repository.UserRepository;
@@ -29,6 +30,9 @@ public class AuthControllerIntTest extends AbstractIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private BootstrapConfig bootstrapConfig;
+
     private static final String BASE_URL = "/api/v1/auth";
 
     @AfterEach
@@ -42,6 +46,10 @@ public class AuthControllerIntTest extends AbstractIntegrationTest {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 8);
     }
 
+    private String configuredBootstrapToken() {
+        return bootstrapConfig.getToken();
+    }
+
     private String registerAdminJson(String suffix) {
         return """
                 {
@@ -51,9 +59,9 @@ public class AuthControllerIntTest extends AbstractIntegrationTest {
                     "password": "password123",
                     "email": "john.%s@example.com",
                     "phone": "+251900%s",
-                    "bootstrapToken": "test-bootstrap-token-12345678901234"
+                                        "bootstrapToken": "%s"
                 }
-                """.formatted(suffix, suffix, suffix.substring(0, 6));
+                                """.formatted(suffix, suffix, suffix.substring(0, 6), configuredBootstrapToken());
     }
 
     private void registerAdmin(String suffix) {
@@ -130,8 +138,7 @@ public class AuthControllerIntTest extends AbstractIntegrationTest {
                 .content("{\"password\":\"password123\",\"email\":\"" + email + "\"}").exchange();
 
         assertThat(loginResponse).hasStatusOk();
-        String refreshToken =
-                refreshTokenRepository.findAll().stream().findFirst().orElseThrow().getToken();
+        String refreshToken = refreshTokenRepository.findAll().stream().findFirst().orElseThrow().getToken();
         assertThat(refreshToken).isNotBlank();
         assertThat(loginResponse).bodyJson().extractingPath("$.accessToken").asString()
                 .isNotBlank();
@@ -159,19 +166,19 @@ public class AuthControllerIntTest extends AbstractIntegrationTest {
     @Test
     void shouldReturnBadRequestWhenBootstrapTokenIsInvalid() {
         String suffix = randomSuffix();
+        String invalidToken = configuredBootstrapToken() + "-invalid";
 
-        MvcTestResult response =
-                mockMvc.post().uri(BASE_URL + "/admins").contentType(APPLICATION_JSON).content("""
-                        {
-                            "firstName": "John",
-                            "lastName": "Doe",
-                            "username": "john_%s",
-                            "password": "password123",
-                            "email": "john.%s@example.com",
-                            "phone": "+251900%s",
-                            "bootstrapToken": "wrong-bootstrap-token-123456789012"
-                        }
-                        """.formatted(suffix, suffix, suffix.substring(0, 6))).exchange();
+        MvcTestResult response = mockMvc.post().uri(BASE_URL + "/admins").contentType(APPLICATION_JSON).content("""
+                {
+                    "firstName": "John",
+                    "lastName": "Doe",
+                    "username": "john_%s",
+                    "password": "password123",
+                    "email": "john.%s@example.com",
+                    "phone": "+251900%s",
+                                        "bootstrapToken": "%s"
+                }
+                                """.formatted(suffix, suffix, suffix.substring(0, 6), invalidToken)).exchange();
 
         assertThat(response).hasStatus(400);
     }
@@ -190,7 +197,7 @@ public class AuthControllerIntTest extends AbstractIntegrationTest {
 
         assertThat(mockMvc.post().uri(BASE_URL + "/confirm-otp").contentType(APPLICATION_JSON)
                 .content("{\"otp\":\"00000\",\"email\":\"" + email + "\"}").exchange())
-                        .hasStatus(400);
+                .hasStatus(400);
     }
 
     @Test
@@ -234,20 +241,20 @@ public class AuthControllerIntTest extends AbstractIntegrationTest {
     void shouldReturnBadRequestWhenLoginPayloadIsInvalid() {
         assertThat(mockMvc.post().uri(BASE_URL + "/login").contentType(APPLICATION_JSON)
                 .content("{\"password\":\"short\",\"email\":\"invalid-email\"}").exchange())
-                        .hasStatus(400);
+                .hasStatus(400);
     }
 
     @Test
     void shouldReturnBadRequestWhenRefreshPayloadIsInvalid() {
         assertThat(mockMvc.post().uri(BASE_URL + "/refresh").contentType(APPLICATION_JSON)
                 .content("{\"refreshToken\":null,\"email\":\"invalid-email\"}").exchange())
-                        .hasStatus(400);
+                .hasStatus(400);
     }
 
     @Test
     void shouldReturnBadRequestWhenLogoutPayloadIsInvalid() {
         assertThat(mockMvc.post().uri(BASE_URL + "/logout").contentType(APPLICATION_JSON)
                 .content("{\"refreshToken\":null,\"email\":\"invalid-email\"}").exchange())
-                        .hasStatus(400);
+                .hasStatus(400);
     }
 }
