@@ -6,21 +6,14 @@ A production-ready Spring Boot monolith template focused on authentication, role
 
 - [Overview](#overview)
 - [Core Features](#core-features)
-- [Production Readiness Checklist](#production-readiness-checklist)
+- [Feature Checklist](#feature-checklist)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Development with Dev Container](#development-with-dev-container)
-- [Environment Configuration](#environment-configuration)
-- [Run the Project](#run-the-project)
-    - [Option A: Local Java Run (Recommended for Development)](#option-a-local-java-run-recommended-for-development)
-    - [Option B: Dockerized App Run](#option-b-dockerized-app-run)
+- [Local Development Setup](#local-development-setup)
 - [API Documentation](#api-documentation)
 - [Authentication and Authorization](#authentication-and-authorization)
 - [Testing](#testing)
 - [Build and Packaging](#build-and-packaging)
-- [Troubleshooting](#troubleshooting)
-- [Security Notes](#security-notes)
 - [Contributing](#contributing)
 
 ## Overview
@@ -107,17 +100,9 @@ This backend exposes versioned REST APIs under `/api/v1/**` and includes:
 └── pom.xml
 ```
 
-## Prerequisites
+## Local Development Setup
 
-Install the following tools:
-
-- Java 25 (for local Maven builds)
-- Docker + Docker Compose plugin
-- Optional: Maven (or use the included Maven wrapper `./mvnw`)
-
-## For local dev
-
-### Development with Dev Container
+### with Dev Container
 
 You can run this project fully inside a VS Code Dev Container.
 
@@ -139,13 +124,19 @@ This gives you a consistent development environment without needing to install J
 
 ### On Local Machine
 
+Install the following tools:
+
+- Java 25 (for local Maven builds)
+- Docker + Docker Compose plugin
+- Optional: Maven (or use the included Maven wrapper `./mvnw`)
+
 1. Copy env template:
 
 ```bash
 cp example.env .env
 ```
 
-then
+2. Start local infrastructure:
 
 ```bash
 docker network create monolith_network || true
@@ -159,7 +150,7 @@ This starts:
 - RustFS S3 API/Console on `9000` / `9001`
 - SQL Studio on `3030`
 
-next
+3. Run the application:
 
 ```bash
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
@@ -239,11 +230,12 @@ Build jar:
 Built artifact:
 
 - `target/monolith-0.0.1-SNAPSHOT.jar`
+- provide environment variables for production configuration (e.g. via `.env` file or orchestration secrets) that match the ones in `src/main/resources/application-prod.properties`
 
 Run packaged jar:
 
 ```bash
-java -jar target/monolith-0.0.1-SNAPSHOT.jar
+java -jar target/monolith-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
 ```
 
 ## Contributing
