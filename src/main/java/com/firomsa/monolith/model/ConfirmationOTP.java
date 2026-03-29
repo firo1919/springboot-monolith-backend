@@ -19,7 +19,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import lombok.ToString;
 
 @Entity
 @Table(name = "confirmation_otps")
@@ -28,7 +27,6 @@ import lombok.ToString;
 @Builder
 @Getter
 @Setter
-@ToString
 @EntityListeners(AuditingEntityListener.class)
 public class ConfirmationOTP {
     @Id

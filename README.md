@@ -13,8 +13,8 @@ A production-ready Spring Boot monolith template focused on authentication, role
 - [Development with Dev Container](#development-with-dev-container)
 - [Environment Configuration](#environment-configuration)
 - [Run the Project](#run-the-project)
-  - [Option A: Local Java Run (Recommended for Development)](#option-a-local-java-run-recommended-for-development)
-  - [Option B: Dockerized App Run](#option-b-dockerized-app-run)
+    - [Option A: Local Java Run (Recommended for Development)](#option-a-local-java-run-recommended-for-development)
+    - [Option B: Dockerized App Run](#option-b-dockerized-app-run)
 - [API Documentation](#api-documentation)
 - [Authentication and Authorization](#authentication-and-authorization)
 - [Testing](#testing)
@@ -55,7 +55,7 @@ This backend exposes versioned REST APIs under `/api/v1/**` and includes:
 - [x] CORS allowlist configuration
 - [x] OpenAPI/Swagger documentation (`/docs`, `/v3/api-docs`)
 - [x] Database integration with PostgreSQL (runtime)
-- [x] Integration, Unit and End-to-End testing with Testcontainers, RestTestClient, and H2 
+- [x] Integration, Unit and End-to-End testing with Testcontainers, RestTestClient, and H2
 - [x] Local developer stack via Docker Compose (Postgres, Mailhog, S3-compatible storage)
 - [x] Global exception handling layer
 - [x] Containerized app build and run flow
@@ -115,17 +115,11 @@ Install the following tools:
 - Docker + Docker Compose plugin
 - Optional: Maven (or use the included Maven wrapper `./mvnw`)
 
-## Development with Dev Container
+## For local dev
+
+### Development with Dev Container
 
 You can run this project fully inside a VS Code Dev Container.
-
-The repository already includes [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json) with:
-
-- Java 25 + Maven
-- Docker-outside-of-Docker support
-- Java/Spring/Docker VS Code extensions
-- Port forwarding for `8080`
-- Automatic creation of `monolith_network`
 
 Steps:
 
@@ -138,15 +132,12 @@ Steps:
 ```bash
 cp example.env .env
 docker compose --env-file .env -f docker-compose-dev.yaml up -d
-set -a
-source .env
-set +a
-./mvnw spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 This gives you a consistent development environment without needing to install Java/Maven locally.
 
-## Environment Configuration
+### On Local Machine
 
 1. Copy env template:
 
@@ -154,39 +145,7 @@ This gives you a consistent development environment without needing to install J
 cp example.env .env
 ```
 
-2. Fill required values in `.env`.
-
-### Required Variables (minimum)
-
-- Database
-  - `SPRING_DATASOURCE_URL`
-  - `SPRING_DATASOURCE_USERNAME`
-  - `SPRING_DATASOURCE_PASSWORD`
-  - `POSTGRES_DB`
-  - `POSTGRES_USER`
-  - `POSTGRES_PASSWORD`
-- Security
-  - `AUTH_SECRET`
-  - `CORS_ORIGINS`
-  - `APP_BOOTSTRAP_TOKEN` (required for admin registration endpoint)
-- Admin bootstrap metadata
-  - `ADMIN_EMAIL`
-  - `ADMIN_PHONE`
-- S3
-  - `AWS_ACCESS_KEY`
-  - `AWS_SECRET_KEY`
-  - `AWS_REGION`
-  - `AWS_S3_ENDPOINT`
-  - `S3_BUCKET_NAME`
-
-### Optional Variables
-
-- `S3_GET_LINK_EXPIRY_MINUTES` (default: 10)
-- `S3_UPLOAD_LINK_EXPIRY_MINUTES` (default: 2)
-- Mail settings (`SPRING_MAIL_*`) depending on SMTP or Mailhog usage
-
-## Run the Project
-1. Start infrastructure services:
+then
 
 ```bash
 docker network create monolith_network || true
@@ -200,13 +159,10 @@ This starts:
 - RustFS S3 API/Console on `9000` / `9001`
 - SQL Studio on `3030`
 
-2. Export env vars and run app:
+next
 
 ```bash
-set -a
-source .env
-set +a
-./mvnw spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 App runs on:
@@ -277,7 +233,7 @@ Notes:
 Build jar:
 
 ```bash
-./mvnw clean package
+./mvnw clean package -DskipTests
 ```
 
 Built artifact:
@@ -287,28 +243,8 @@ Built artifact:
 Run packaged jar:
 
 ```bash
-set -a
-source .env
-set +a
 java -jar target/monolith-0.0.1-SNAPSHOT.jar
 ```
-
-## Troubleshooting
-
-- App cannot register admin
-  - Ensure `APP_BOOTSTRAP_TOKEN` is set and request includes matching bootstrap token.
-- Swagger not reachable
-  - Verify app is running and open `http://localhost:8080/docs`.
-- Database connection errors
-  - Confirm Postgres container is healthy and datasource env vars are correct.
-- CORS issues
-  - Set `CORS_ORIGINS` to include your frontend origin(s).
-- S3 upload/presign issues
-  - Verify endpoint, access key/secret, region, and bucket name.
-- Docker compose fails with missing network
-  - Create network: `docker network create monolith_network`.
-- Java version mismatch during Docker build
-  - Align project Java version and Docker base image Java version.
 
 ## Contributing
 
