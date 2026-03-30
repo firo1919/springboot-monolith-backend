@@ -17,14 +17,14 @@ public class SwaggerConfig {
     @Bean
     public GroupedOpenApi v1Api() {
         return GroupedOpenApi.builder().group("v1").pathsToMatch("/api/v1/**")
-                .addOpenApiCustomizer(openApi -> openApi.info(new Info().title("IMS API v1")
-                        .description("Version 1 of the IMS API").version("v1")))
+                .addOpenApiCustomizer(openApi -> openApi.info(new Info().title("monolith API v1")
+                        .description("Version 1 of the monolith API").version("v1")))
                 .build();
     }
 
     @Bean
     public OpenAPI mainOpenApiInfo() {
-        return new OpenAPI().info(new Info().title("IMS API")
+        return new OpenAPI().info(new Info().title("monolith API")
                 .description("All available API versions").version("Current"))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new Components()
