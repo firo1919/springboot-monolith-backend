@@ -28,7 +28,7 @@
             ]
         }
     },
-    "forwardPorts": [8080],
+    "forwardPorts": [8080, 6060],
     "runArgs": ["--network=monolith_network"],
     "initializeCommand": "docker network create monolith_network || true",
     "postCreateCommand": "mvn clean install -DskipTests"
