@@ -65,7 +65,7 @@ public abstract class AbstractE2ETest {
     private static final GenericContainer<?> s3 = new GenericContainer<>("rustfs/rustfs:latest")
             .withExposedPorts(9000, 9001).withEnv("RUSTFS_ACCESS_KEY", RUSTFS_ACCESS_KEY)
             .withEnv("RUSTFS_SECRET_KEY", RUSTFS_SECRET_KEY)
-            .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forLogMessage(".*started successfully.*", 1))
+            .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forListeningPort())
             .withStartupTimeout(java.time.Duration.ofMinutes(3));
 
     static {
