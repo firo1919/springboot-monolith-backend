@@ -16,8 +16,7 @@ permissions:
   contents: read
 
 env:
-  # Maven module lives under Backend/; the built jar name comes from the POM
-  WORKDIR: Backend
+  WORKDIR: ./
   JAR_NAME: monolith-0.0.1-SNAPSHOT.jar
 
 jobs:
@@ -122,8 +121,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ./Backend
-          file: ./Backend/Dockerfile
+          context: ./
+          file: ./Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
