@@ -6,7 +6,6 @@ A production-ready Spring Boot monolith template focused on authentication, role
 
 - [Overview](#overview)
 - [Core Features](#core-features)
-- [Feature Checklist](#feature-checklist)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Local Development Setup](#local-development-setup)
@@ -30,34 +29,15 @@ This backend exposes versioned REST APIs under `/api/v1/**` and includes:
 
 ## Core Features
 
-- Authentication endpoints for admin registration, login, OTP confirmation/resend, refresh, and logout
-- Upload endpoint to generate pre-signed upload tickets
-- Spring Security resource server configuration with JWT (HS256)
-- CORS configuration using environment-provided allowed origins
-- Postgres-based persistence for runtime
-- Mail support (Mailhog locally, SMTP for production)
-- S3-compatible object storage support (configured for RustFS/MinIO-style endpoints)
-
-## Feature Checklist
-
-- [x] JWT-based stateless authentication
-- [x] Role-based authorization
-- [x] OTP confirmation and resend flow
-- [x] Refresh token and logout endpoints
-- [x] Environment-variable based configuration (`.env` driven)
-- [x] CORS allowlist configuration
-- [x] OpenAPI/Swagger documentation (`/docs`, `/v3/api-docs`)
-- [x] Database integration with PostgreSQL (runtime)
-- [x] Integration, Unit and End-to-End testing with Testcontainers, RestTestClient, and H2
-- [x] Local developer stack via Docker Compose (Postgres, Mailhog, S3-compatible storage)
-- [x] Global exception handling layer
-- [x] Containerized app build and run flow
-- [ ] Liveness and readiness health groups configured for orchestration probes
-- [ ] Actuator endpoints for monitoring and metrics
-- [ ] Database migration tooling (Flyway or Liquibase) replacing ad-hoc schema updates
-- [ ] Secrets management integration (Vault, cloud secret manager, or Kubernetes secrets)
-- [ ] Rate limiting / abuse protection for auth endpoints
-- [ ] CI pipeline with linting, tests, and build verification on pull requests
+- **Stateless Authentication**: JWT-based stateless authentication (HS256) with refresh token and logout flows.
+- **Role-Based Authorization**: Fine-grained access control with Admin and Employee scopes.
+- **OTP Verification**: Registration OTP confirmation and resend flows for account verification.
+- **Flyway Database Migrations**: Automatic schema lifecycle management and database migrations.
+- **Pre-signed S3 Uploads**: Endpoint to generate pre-signed upload tickets for S3-compatible storage (e.g., MinIO, RustFS).
+- **Comprehensive Testing**: Unit, Integration, and E2E test suites using JUnit 5, Testcontainers, and MockMvc.
+- **API Documentation**: Interactive OpenAPI/Swagger UI docs exposed at `/docs`.
+- **Infrastructure Support**: Dev-ready environment using Docker Compose (Postgres, Redis, Mailhog, S3-compatible storage).
+- **Security & Logging**: Correlation ID propagation across filters and aspects, global exception handling, and secure CORS allowlist.
 
 ## Tech Stack
 
