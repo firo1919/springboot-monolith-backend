@@ -20,7 +20,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 public final class SharedContainers {
 
     @SuppressWarnings("resource")
-    public static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18-alpine");
+    public static final PostgreSQLContainer POSTGRES = (PostgreSQLContainer) new PostgreSQLContainer("postgres:18-alpine")
+            .withStartupTimeout(java.time.Duration.ofMinutes(3));
 
     static {
         POSTGRES.start();
