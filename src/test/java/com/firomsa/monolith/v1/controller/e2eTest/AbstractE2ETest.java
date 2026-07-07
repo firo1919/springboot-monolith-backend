@@ -5,24 +5,20 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 import java.net.URI;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
@@ -30,6 +26,7 @@ import com.firomsa.monolith.config.BootstrapConfig;
 import com.firomsa.monolith.repository.ConfirmationOtpRepository;
 import com.firomsa.monolith.repository.RefreshTokenRepository;
 import com.firomsa.monolith.repository.UserRepository;
+import com.firomsa.monolith.support.SharedContainers;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -40,12 +37,10 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Transactional
 @AutoConfigureRestTestClient
 @SuppressWarnings("resource")
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@Isolated
 public abstract class AbstractE2ETest {
     protected static final String AUTH_BASE_URL = "/api/v1/auth";
     protected static final String ADMIN_BASE_URL = "/api/v1/admin";
@@ -54,16 +49,29 @@ public abstract class AbstractE2ETest {
     private static final String RUSTFS_SECRET_KEY = "rustfsadmin";
     private static final String TEST_BUCKET = "test-bucket";
 
+    // Postgres is shared with the integration tests (see SharedContainers); mailhog
+    // and s3 are only
+    // needed by e2e tests, so they are singletons local to this base class. All are
+    // started once per
+    // JVM and reaped by Ryuk at exit — no per-class pile-up, no reliance on
+    // container reuse.
     @ServiceConnection
-    @Container
-    private static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18-alpine");
+    private static final PostgreSQLContainer postgres = SharedContainers.POSTGRES;
 
     private static final GenericContainer<?> mailhog = new GenericContainer<>("mailhog/mailhog:latest")
-            .withExposedPorts(1025, 8025);
+            .withExposedPorts(1025, 8025)
+            .withStartupTimeout(java.time.Duration.ofMinutes(3));
 
     private static final GenericContainer<?> s3 = new GenericContainer<>("rustfs/rustfs:latest")
             .withExposedPorts(9000, 9001).withEnv("RUSTFS_ACCESS_KEY", RUSTFS_ACCESS_KEY)
-            .withEnv("RUSTFS_SECRET_KEY", RUSTFS_SECRET_KEY);
+            .withEnv("RUSTFS_SECRET_KEY", RUSTFS_SECRET_KEY)
+            .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forLogMessage(".*started successfully.*", 1))
+            .withStartupTimeout(java.time.Duration.ofMinutes(3));
+
+    static {
+        Startables.deepStart(mailhog, s3).join();
+        ensureBucketExists();
+    }
 
     protected RestTestClient client;
 
@@ -106,9 +114,6 @@ public abstract class AbstractE2ETest {
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        Startables.deepStart(Stream.of(postgres, mailhog, s3)).join();
-        ensureBucketExists();
-
         registry.add("spring.mail.host", mailhog::getHost);
         registry.add("spring.mail.port", () -> mailhog.getMappedPort(1025));
         registry.add("spring.cloud.aws.s3.endpoint",

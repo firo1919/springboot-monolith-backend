@@ -7,13 +7,21 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import com.firomsa.monolith.model.ConfirmationOTP;
 import com.firomsa.monolith.model.User;
 import com.firomsa.monolith.repository.ConfirmationOtpRepository;
 import com.firomsa.monolith.repository.UserRepository;
+import com.firomsa.monolith.support.SharedContainers;
 
 @DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 public class ConfirmationOtpRepositoryUnitTest {
+
+    @ServiceConnection
+    static PostgreSQLContainer postgres = SharedContainers.POSTGRES;
     @Autowired
     private ConfirmationOtpRepository confirmationOtpRepository;
     @Autowired
@@ -78,5 +86,40 @@ public class ConfirmationOtpRepositoryUnitTest {
                 .findByOtpAndExpiresAtAfterAndConfirmedFalse("123456", LocalDateTime.now());
         // Assert
         assertThat(newConfirmationOtp).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should find confirmation otp by otp, user email, expiresAt after, and confirmed false")
+    void shouldFindByOtpAndUserEmailAndExpiresAtAfterAndConfirmedFalse() {
+        // Act
+        var confirmationOtp = confirmationOtpRepository
+                .findByOtpAndUserEmailAndExpiresAtAfterAndConfirmedFalse("123456", "john.doe@example.com",
+                        LocalDateTime.now());
+        // Assert
+        assertThat(confirmationOtp).isPresent();
+        assertThat(confirmationOtp.get().getOtp()).isEqualTo("123456");
+    }
+
+    @Test
+    @DisplayName("should not find confirmation otp when email does not match")
+    void shouldNotFindByOtpAndUserEmailWhenEmailMismatches() {
+        // Act
+        var confirmationOtp = confirmationOtpRepository
+                .findByOtpAndUserEmailAndExpiresAtAfterAndConfirmedFalse("123456", "other@example.com",
+                        LocalDateTime.now());
+        // Assert
+        assertThat(confirmationOtp).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should delete unconfirmed otps by user email")
+    void shouldDeleteByUserEmailAndConfirmedFalse() {
+        // Act
+        confirmationOtpRepository.deleteByUserEmailAndConfirmedFalse("john.doe@example.com");
+        // Assert
+        var confirmationOtp = confirmationOtpRepository
+                .findByOtpAndUserEmailAndExpiresAtAfterAndConfirmedFalse("123456", "john.doe@example.com",
+                        LocalDateTime.now());
+        assertThat(confirmationOtp).isEmpty();
     }
 }

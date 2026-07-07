@@ -35,10 +35,10 @@ class JWTAuthServiceUnitTest {
 
     @BeforeEach
     void setUp() {
-        Collection<GrantedAuthority> authorities =
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        Collection<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_ADMIN"));
 
-        // Use lenient() to avoid UnnecessaryStubbingException if a test doesn't use these
+        // Use lenient() to avoid UnnecessaryStubbingException if a test doesn't use
+        // these
         lenient().when(authentication.getName()).thenReturn("john@example.com");
         lenient().doReturn(authorities).when(authentication).getAuthorities();
         lenient().when(jwt.getTokenValue()).thenReturn("mocked-jwt-token");

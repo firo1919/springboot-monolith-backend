@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 
 public class AuthControllerE2ETest extends AbstractE2ETest {
 
-    private static String registeredAdminEmail;
+    private String registeredAdminEmail;
 
     private void registerAdmin(String suffix) {
         var registerResponse = client.post().uri(AUTH_BASE_URL + "/admins").contentType(APPLICATION_JSON)

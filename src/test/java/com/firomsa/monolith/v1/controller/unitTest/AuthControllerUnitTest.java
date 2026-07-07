@@ -13,12 +13,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 import com.firomsa.monolith.model.Roles;
+import com.firomsa.monolith.support.TestCacheConfig;
 import com.firomsa.monolith.v1.controller.AuthController;
 import com.firomsa.monolith.v1.dto.ConfirmOtpRequestDTO;
 import com.firomsa.monolith.v1.dto.ConfirmOtpResponseDTO;
@@ -35,6 +37,7 @@ import com.firomsa.monolith.v1.dto.UserResponseDTO;
 import com.firomsa.monolith.v1.service.AuthService;
 
 @WebMvcTest(AuthController.class)
+@Import(TestCacheConfig.class)
 @AutoConfigureMockMvc
 @WithMockUser
 public class AuthControllerUnitTest {
@@ -69,18 +72,17 @@ public class AuthControllerUnitTest {
     @Test
     void shouldRegisterAdmin() {
         UserResponseDTO user = sampleUser(UUID.randomUUID(), "admin.user");
-        RegisterResponseDTO response =
-                new RegisterResponseDTO(user, "You have successfully registered");
+        RegisterResponseDTO response = new RegisterResponseDTO(user, "You have successfully registered");
         when(authService.createAdmin(any(RegisterAdminRequestDTO.class))).thenReturn(response);
 
         MvcTestResult result = mockMvc.post().uri(BASE_URL + "/admins").with(csrf())
                 .contentType(APPLICATION_JSON).content(registerAdminRequestJson()).exchange();
+
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.data.id").asString()
                 .isEqualTo(user.getId().toString());
         assertThat(result).bodyJson().extractingPath("$.message").asString()
                 .isEqualTo("You have successfully registered");
-
         verify(authService).createAdmin(any(RegisterAdminRequestDTO.class));
     }
 
@@ -96,10 +98,10 @@ public class AuthControllerUnitTest {
                                 "email": "admin@example.com"
                             }
                         """).exchange();
+
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.message").asString()
                 .isEqualTo("Successfully confirmed OTP");
-
         verify(authService).confirmOtp(any(ConfirmOtpRequestDTO.class));
     }
 
@@ -114,10 +116,10 @@ public class AuthControllerUnitTest {
                                 "email": "admin@example.com"
                             }
                         """).exchange();
+
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.message").asString()
                 .isEqualTo("Successfully resent OTP");
-
         verify(authService).resendOtp(any(ResendOtpRequestDTO.class));
     }
 
@@ -134,13 +136,13 @@ public class AuthControllerUnitTest {
                                 "email": "admin@example.com"
                             }
                         """).exchange();
+
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.role").asString().isEqualTo("ADMIN");
         assertThat(result).bodyJson().extractingPath("$.accessToken").asString()
                 .isEqualTo("access-token");
         assertThat(result).bodyJson().extractingPath("$.refreshToken").asString()
                 .isEqualTo("refresh-token");
-
         verify(authService).login(any(LoginRequestDTO.class));
     }
 
@@ -158,6 +160,7 @@ public class AuthControllerUnitTest {
                                 "email": "admin@example.com"
                             }
                         """).exchange();
+
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.accessToken").asString()
                 .isEqualTo("new-access-token");
@@ -179,10 +182,10 @@ public class AuthControllerUnitTest {
                                 "email": "admin@example.com"
                             }
                         """).exchange();
+
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.message").asString()
                 .isEqualTo("Successfully logged out");
-
         verify(authService).logoutUser(any(LogoutRequestDTO.class));
     }
 }

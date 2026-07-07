@@ -40,6 +40,21 @@ services:
       - 1025:1025
       - 8025:8025
 
+  redis:
+    image: "redis:7-alpine"
+    container_name: monolith_redis
+    ports:
+      - 6379:6379
+    volumes:
+      - monolith_redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   rustfs:
     security_opt:
       - "no-new-privileges:true"
@@ -70,6 +85,7 @@ services:
 volumes:
   monolith_db_data:
   rustfs-data:
+  monolith_redis_data:
 
 networks:
   default:

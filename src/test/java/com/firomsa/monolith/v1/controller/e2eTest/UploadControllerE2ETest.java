@@ -10,7 +10,7 @@ public class UploadControllerE2ETest extends AbstractE2ETest {
 
     private static final String UPLOAD_BASE_URL = "/api/v1/uploads";
 
-    private static String adminAccessToken;
+    private String adminAccessToken;
 
     private void registerAndConfirmAdminIfNeeded() {
         if (adminAccessToken != null) {
@@ -31,6 +31,22 @@ public class UploadControllerE2ETest extends AbstractE2ETest {
         confirmResponse.expectStatus().isOk();
 
         adminAccessToken = loginByEmail(email);
+    }
+
+    private String registerAndLoginEmployee(String adminToken, String suffix) {
+        var registerEmployeeResponse = client.post().uri(ADMIN_BASE_URL + "/employees")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader(adminToken))
+                .contentType(APPLICATION_JSON).body(registerEmployeePayload(suffix)).exchange();
+        registerEmployeeResponse.expectStatus().isCreated();
+
+        String employeeEmail = employeeEmailForSuffix(suffix);
+        String otp = latestOtpForEmail(employeeEmail);
+        String confirmPayload = "{\"otp\":\"" + otp + "\",\"email\":\"" + employeeEmail + "\"}";
+        var confirmResponse = client.post().uri(AUTH_BASE_URL + "/confirm-otp")
+                .contentType(APPLICATION_JSON).body(confirmPayload).exchange();
+        confirmResponse.expectStatus().isOk();
+
+        return loginByEmail(employeeEmail);
     }
 
     @Test
@@ -55,6 +71,19 @@ public class UploadControllerE2ETest extends AbstractE2ETest {
         assertThat(body).contains("objectKey");
         assertThat(body).contains("uploadUrl");
         assertThat(body).contains("expiresIn");
+    }
+
+    @Test
+    void shouldCreatePresignTicketForEmployee() {
+        registerAndConfirmAdminIfNeeded();
+        String employeeToken = registerAndLoginEmployee(adminAccessToken, randomSuffix());
+
+        var response = client.post().uri(UPLOAD_BASE_URL + "/presign")
+                .header(HttpHeaders.AUTHORIZATION, authorizationHeader(employeeToken))
+                .contentType(APPLICATION_JSON)
+                .body("{\"filename\":\"avatar.jpg\",\"contentType\":\"image/jpeg\"}").exchange();
+
+        response.expectStatus().isOk();
     }
 
     @Test

@@ -33,6 +33,7 @@ public class AuthController {
 
     private final AuthService authService;
 
+    // Employee management endpoints
     @Operation(summary = "For registering an admin")
     @PostMapping("/admins")
     @ResponseStatus(HttpStatus.OK)

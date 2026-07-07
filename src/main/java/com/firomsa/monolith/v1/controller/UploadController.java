@@ -22,8 +22,7 @@ public class UploadController {
     private final StorageService storageService;
 
     @PostMapping("/presign")
-    public UploadResponseDTO createUploadPresignTicket(
-            @Valid @RequestBody UploadRequestDTO filename) {
+    public UploadResponseDTO createUploadPresignTicket(@Valid @RequestBody UploadRequestDTO filename) {
         return storageService.createUploadPresignTicket(filename);
     }
 }

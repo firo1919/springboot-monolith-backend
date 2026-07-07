@@ -6,13 +6,21 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import com.firomsa.monolith.model.RefreshToken;
 import com.firomsa.monolith.model.User;
 import com.firomsa.monolith.repository.RefreshTokenRepository;
 import com.firomsa.monolith.repository.UserRepository;
+import com.firomsa.monolith.support.SharedContainers;
 
 @DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 public class RefreshTokenRepositoryUnitTest {
+
+    @ServiceConnection
+    static PostgreSQLContainer postgres = SharedContainers.POSTGRES;
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
@@ -25,10 +33,8 @@ public class RefreshTokenRepositoryUnitTest {
         User user = User.builder().firstName("John").lastName("Doe").username("john_doe")
                 .password("password123").phone("12345678").email("john.doe@example.com").build();
         var savedUser = userRepository.save(user);
-        RefreshToken refreshTokenOne =
-                RefreshToken.builder().token("test-refresh-token").user(savedUser).build();
-        RefreshToken refreshTokenTwo =
-                RefreshToken.builder().token("test-refresh-token-2").user(savedUser).build();
+        RefreshToken refreshTokenOne = RefreshToken.builder().token("test-refresh-token").user(savedUser).build();
+        RefreshToken refreshTokenTwo = RefreshToken.builder().token("test-refresh-token-2").user(savedUser).build();
         refreshTokenRepository.save(refreshTokenOne);
         refreshTokenRepository.save(refreshTokenTwo);
     }
@@ -55,15 +61,13 @@ public class RefreshTokenRepositoryUnitTest {
         assertThat(refreshToken.get().getToken()).isEqualTo("test-refresh-token");
     }
 
-
     @Test
     @DisplayName("should find refresh token by token and user")
     void shouldFindByTokenAndUser() {
         // Arrange
         var user = userRepository.findByEmail("john.doe@example.com");
         // Act
-        var refreshToken =
-                refreshTokenRepository.findByTokenAndUser("test-refresh-token", user.get());
+        var refreshToken = refreshTokenRepository.findByTokenAndUser("test-refresh-token", user.get());
         // Assert
         assertThat(refreshToken).isNotNull();
         assertThat(refreshToken.get().getToken()).isEqualTo("test-refresh-token");

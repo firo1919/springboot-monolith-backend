@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.firomsa.monolith.config.BootstrapConfig;
@@ -40,6 +41,9 @@ import com.firomsa.monolith.v1.dto.RegisterRequestDTO;
 import com.firomsa.monolith.v1.dto.RegisterResponseDTO;
 import com.firomsa.monolith.v1.dto.ResendOtpRequestDTO;
 import com.firomsa.monolith.v1.dto.ResendOtpResponseDTO;
+import com.firomsa.monolith.model.AuditAction;
+import com.firomsa.monolith.model.AuditStatus;
+import com.firomsa.monolith.service.AuditLogService;
 import com.firomsa.monolith.v1.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,8 +64,10 @@ public class AuthService {
     private final JWTAuthService jwtAuthService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final BootstrapConfig bootstrapConfig;
-    private final int OTP_DURATION = 6;
+    @Value("${app.otp.duration:15}")
+    private int otpDuration = 15;
     private final JwtDecoder jwtDecoder;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public RegisterResponseDTO create(RegisterRequestDTO registerRequestDTO) {
@@ -83,7 +89,7 @@ public class AuthService {
         var registeredUser = userRepository.save(user);
         var otp = generateOtp();
         confirmationOtpRepository.save(ConfirmationOTP.builder().otp(otp).user(registeredUser)
-                .expiresAt(LocalDateTime.now().plusMinutes(OTP_DURATION)).build());
+                .expiresAt(LocalDateTime.now().plusMinutes(otpDuration)).build());
         emailService.sendOtp(otp, user.getEmail());
         var response = new RegisterResponseDTO(userMapper.toDTO(registeredUser),
                 "You have successfully registered, confirm the OTP sent to your email");
@@ -92,7 +98,8 @@ public class AuthService {
 
     @Transactional
     public RegisterResponseDTO createAdmin(RegisterAdminRequestDTO registerAdminRequestDTO) {
-        // Validate bootstrap token configuration first to avoid revealing deployment state
+        // Validate bootstrap token configuration first to avoid revealing deployment
+        // state
         if (bootstrapConfig.getToken() == null || bootstrapConfig.getToken().isBlank()) {
             throw new AuthenticationException(
                     "Bootstrap token is not configured. Please set APP_BOOTSTRAP_TOKEN environment variable to enable admin registration.");
@@ -110,14 +117,14 @@ public class AuthService {
             throw new AuthenticationException("Authentication failed");
         }
 
+        Role role = roleRepository.findByName(Roles.ADMIN)
+                .orElseThrow(() -> new ResourceNotFoundException("Role: ADMIN"));
+
         // Check if admin already exists
-        if (userRepository.count() > 0) {
+        if (userRepository.existsByRole(role)) {
             throw new AuthenticationException(
                     "Only one admin can be registered, if you want to create more admins please ask the existing admin to create them");
         }
-
-        Role role = roleRepository.findByName(Roles.ADMIN)
-                .orElseThrow(() -> new ResourceNotFoundException("Role: ADMIN"));
 
         RegisterRequestDTO registerRequestDTO = new RegisterRequestDTO(
                 registerAdminRequestDTO.firstName(), registerAdminRequestDTO.lastName(),
@@ -131,7 +138,7 @@ public class AuthService {
         var registeredUser = userRepository.save(user);
         var otp = generateOtp();
         confirmationOtpRepository.save(ConfirmationOTP.builder().otp(otp).user(registeredUser)
-                .expiresAt(LocalDateTime.now().plusMinutes(OTP_DURATION)).build());
+                .expiresAt(LocalDateTime.now().plusMinutes(otpDuration)).build());
         emailService.sendOtp(otp, user.getEmail());
         var response = new RegisterResponseDTO(userMapper.toDTO(registeredUser),
                 "You have successfully registered, confirm the OTP sent to your email");
@@ -143,8 +150,8 @@ public class AuthService {
         User user = userRepository.findByEmail(confirmOtpRequestDTO.email())
                 .orElseThrow(() -> new ResourceNotFoundException(confirmOtpRequestDTO.email()));
         var otp = confirmationOtpRepository
-                .findByOtpAndExpiresAtAfterAndConfirmedFalse(confirmOtpRequestDTO.otp(),
-                        LocalDateTime.now())
+                .findByOtpAndUserEmailAndExpiresAtAfterAndConfirmedFalse(confirmOtpRequestDTO.otp(),
+                        confirmOtpRequestDTO.email(), LocalDateTime.now())
                 .orElseThrow(() -> new InvalidOtpException(
                         "Wrong otp, please use the correct OTP code or ask for a resend"));
 
@@ -168,32 +175,42 @@ public class AuthService {
         return numbers.toString();
     }
 
+    @Transactional
     public ResendOtpResponseDTO resendOtp(ResendOtpRequestDTO resendOtpRequestDTO) {
         User user = userRepository.findByEmail(resendOtpRequestDTO.email())
                 .orElseThrow(() -> new ResourceNotFoundException(resendOtpRequestDTO.email()));
+        confirmationOtpRepository.deleteByUserEmailAndConfirmedFalse(resendOtpRequestDTO.email());
         var otp = generateOtp();
         confirmationOtpRepository.save(ConfirmationOTP.builder().otp(otp).user(user)
-                .expiresAt(LocalDateTime.now().plusMinutes(OTP_DURATION)).build());
+                .expiresAt(LocalDateTime.now().plusMinutes(otpDuration)).build());
         emailService.sendOtp(otp, user.getEmail());
         return new ResendOtpResponseDTO("Successfully resent OTP, check your inbox");
     }
 
     public LoginResponseDTO login(LoginRequestDTO loginRequestDTO) {
-        Authentication authentication =
-                authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
-                        loginRequestDTO.email(), loginRequestDTO.password()));
-        String accessToken = jwtAuthService.generateToken(authentication);
-        String refreshToken = jwtAuthService.generateRefreshToken(authentication);
-        User user = userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new ResourceNotFoundException(authentication.getName()));
-        RefreshToken refreshTokenEntity = new RefreshToken();
-        refreshTokenEntity.setUser(user);
-        refreshTokenEntity.setToken(refreshToken);
+        try {
+            Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
+                    loginRequestDTO.email(), loginRequestDTO.password()));
+            String accessToken = jwtAuthService.generateToken(authentication);
+            String refreshToken = jwtAuthService.generateRefreshToken(authentication);
+            User user = userRepository.findByEmail(authentication.getName())
+                    .orElseThrow(() -> new ResourceNotFoundException(authentication.getName()));
+            RefreshToken refreshTokenEntity = new RefreshToken();
+            refreshTokenEntity.setUser(user);
+            refreshTokenEntity.setToken(refreshToken);
 
-        refreshTokenRepository.save(refreshTokenEntity);
+            refreshTokenRepository.save(refreshTokenEntity);
 
-        return new LoginResponseDTO(user.getRole().getName(), accessToken, refreshToken,
-                user.getUsername(), user.getEmail());
+            auditLogService.logAudit(AuditAction.LOGIN, "User", user.getId(), null,
+                    user.getEmail(), AuditStatus.SUCCESS, null);
+
+            return new LoginResponseDTO(user.getRole().getName(), accessToken, refreshToken,
+                    user.getUsername(), user.getEmail());
+        } catch (Exception e) {
+            auditLogService.logAudit(AuditAction.AUTH_FAILED, "User", null, null,
+                    loginRequestDTO.email(), AuditStatus.FAILURE, e.getMessage());
+            throw e;
+        }
     }
 
     @Transactional
@@ -237,6 +254,10 @@ public class AuthService {
                         "Refresh token is invalid, please login"));
 
         refreshTokenRepository.delete(token);
+
+        auditLogService.logAudit(AuditAction.LOGOUT, "User", user.getId(), null,
+                user.getEmail(), AuditStatus.SUCCESS, null);
+
         return new LogoutResponseDTO("Successfully logged out");
     }
 

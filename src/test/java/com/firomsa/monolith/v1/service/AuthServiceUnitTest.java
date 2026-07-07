@@ -42,6 +42,7 @@ import com.firomsa.monolith.repository.ConfirmationOtpRepository;
 import com.firomsa.monolith.repository.RefreshTokenRepository;
 import com.firomsa.monolith.repository.RoleRepository;
 import com.firomsa.monolith.repository.UserRepository;
+import com.firomsa.monolith.service.AuditLogService;
 import com.firomsa.monolith.v1.dto.ConfirmOtpRequestDTO;
 import com.firomsa.monolith.v1.dto.ConfirmOtpResponseDTO;
 import com.firomsa.monolith.v1.dto.LoginRequestDTO;
@@ -84,6 +85,8 @@ class AuthServiceUnitTest {
     private BootstrapConfig bootstrapConfig;
     @Mock
     private JwtDecoder jwtDecoder;
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private AuthService authService;
@@ -186,11 +189,11 @@ class AuthServiceUnitTest {
         RegisterAdminRequestDTO adminRequest = new RegisterAdminRequestDTO("Admin", "User", "admin",
                 "password", "admin@example.com", "1234567890", "valid-token");
         when(bootstrapConfig.getToken()).thenReturn("valid-token");
-        when(userRepository.count()).thenReturn(0L);
 
         Role adminRole = new Role();
         adminRole.setName(Roles.ADMIN);
         when(roleRepository.findByName(Roles.ADMIN)).thenReturn(Optional.of(adminRole));
+        when(userRepository.existsByRole(adminRole)).thenReturn(false);
 
         when(userMapper.toModel(any(RegisterRequestDTO.class))).thenReturn(user);
         when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
@@ -207,7 +210,65 @@ class AuthServiceUnitTest {
         assertNotNull(response);
         assertEquals("You have successfully registered, confirm the OTP sent to your email",
                 response.message());
+        verify(userRepository, times(1)).existsByRole(adminRole);
         verify(userRepository, times(1)).save(user);
+    }
+
+    @Test
+    @DisplayName("Should register admin when non-admin employees exist in DB but no admin user exists")
+    void createAdmin_WhenEmployeesExistButNoAdmin_ShouldRegisterAdmin() {
+        // Arrange
+        RegisterAdminRequestDTO adminRequest = new RegisterAdminRequestDTO("Admin", "User", "admin",
+                "password", "admin@example.com", "1234567890", "valid-token");
+        when(bootstrapConfig.getToken()).thenReturn("valid-token");
+
+        Role adminRole = new Role();
+        adminRole.setName(Roles.ADMIN);
+        when(roleRepository.findByName(Roles.ADMIN)).thenReturn(Optional.of(adminRole));
+        // Non-admin employees exist, but no ADMIN exists
+        when(userRepository.existsByRole(adminRole)).thenReturn(false);
+
+        when(userMapper.toModel(any(RegisterRequestDTO.class))).thenReturn(user);
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenReturn(user);
+        when(confirmationOtpRepository.save(any(ConfirmationOTP.class)))
+                .thenReturn(new ConfirmationOTP());
+        doNothing().when(emailService).sendOtp(anyString(), anyString());
+        when(userMapper.toDTO(user)).thenReturn(userResponseDTO);
+
+        // Act
+        RegisterResponseDTO response = authService.createAdmin(adminRequest);
+
+        // Assert
+        assertNotNull(response);
+        assertEquals("You have successfully registered, confirm the OTP sent to your email",
+                response.message());
+        verify(userRepository, times(1)).existsByRole(adminRole);
+        verify(userRepository, times(1)).save(user);
+    }
+
+    @Test
+    @DisplayName("Should throw AuthenticationException when an admin user already exists")
+    void createAdmin_WhenAdminAlreadyExists_ShouldThrowException() {
+        // Arrange
+        RegisterAdminRequestDTO adminRequest = new RegisterAdminRequestDTO("Admin", "User", "admin",
+                "password", "admin@example.com", "1234567890", "valid-token");
+        when(bootstrapConfig.getToken()).thenReturn("valid-token");
+
+        Role adminRole = new Role();
+        adminRole.setName(Roles.ADMIN);
+        when(roleRepository.findByName(Roles.ADMIN)).thenReturn(Optional.of(adminRole));
+        when(userRepository.existsByRole(adminRole)).thenReturn(true);
+
+        // Act & Assert
+        AuthenticationException exception = assertThrows(AuthenticationException.class,
+                () -> authService.createAdmin(adminRequest));
+
+        assertEquals(
+                "Only one admin can be registered, if you want to create more admins please ask the existing admin to create them",
+                exception.getMessage());
+        verify(userRepository, times(1)).existsByRole(adminRole);
+        verify(userRepository, never()).save(any());
     }
 
     @Test
@@ -233,8 +294,8 @@ class AuthServiceUnitTest {
         otp.setConfirmed(false);
 
         when(userRepository.findByEmail("john@example.com")).thenReturn(Optional.of(user));
-        when(confirmationOtpRepository.findByOtpAndExpiresAtAfterAndConfirmedFalse(eq("12345"),
-                any(LocalDateTime.class))).thenReturn(Optional.of(otp));
+        when(confirmationOtpRepository.findByOtpAndUserEmailAndExpiresAtAfterAndConfirmedFalse(eq("12345"),
+                eq("john@example.com"), any(LocalDateTime.class))).thenReturn(Optional.of(otp));
 
         // Act
         ConfirmOtpResponseDTO response = authService.confirmOtp(request);
@@ -254,8 +315,8 @@ class AuthServiceUnitTest {
         // Arrange
         ConfirmOtpRequestDTO request = new ConfirmOtpRequestDTO("wrong-otp", "john@example.com");
         when(userRepository.findByEmail("john@example.com")).thenReturn(Optional.of(user));
-        when(confirmationOtpRepository.findByOtpAndExpiresAtAfterAndConfirmedFalse(eq("wrong-otp"),
-                any(LocalDateTime.class))).thenReturn(Optional.empty());
+        when(confirmationOtpRepository.findByOtpAndUserEmailAndExpiresAtAfterAndConfirmedFalse(eq("wrong-otp"),
+                eq("john@example.com"), any(LocalDateTime.class))).thenReturn(Optional.empty());
 
         // Act & Assert
         assertThrows(InvalidOtpException.class, () -> authService.confirmOtp(request));
@@ -263,11 +324,26 @@ class AuthServiceUnitTest {
     }
 
     @Test
-    @DisplayName("Should resend OTP successfully")
+    @DisplayName("Should throw InvalidOtpException when OTP does not belong to user")
+    void confirmOtp_WhenOtpBelongsToAnotherUser_ShouldThrowException() {
+        // Arrange
+        ConfirmOtpRequestDTO request = new ConfirmOtpRequestDTO("12345", "john@example.com");
+
+        when(userRepository.findByEmail("john@example.com")).thenReturn(Optional.of(user));
+        when(confirmationOtpRepository.findByOtpAndUserEmailAndExpiresAtAfterAndConfirmedFalse(eq("12345"),
+                eq("john@example.com"), any(LocalDateTime.class))).thenReturn(Optional.empty());
+        // Act & Assert
+        assertThrows(InvalidOtpException.class, () -> authService.confirmOtp(request));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should resend OTP successfully and delete old unconfirmed OTPs")
     void resendOtp_ShouldGenerateAndSendNewOtp() {
         // Arrange
         ResendOtpRequestDTO request = new ResendOtpRequestDTO("john@example.com");
         when(userRepository.findByEmail("john@example.com")).thenReturn(Optional.of(user));
+        doNothing().when(confirmationOtpRepository).deleteByUserEmailAndConfirmedFalse("john@example.com");
         when(confirmationOtpRepository.save(any(ConfirmationOTP.class)))
                 .thenReturn(new ConfirmationOTP());
         doNothing().when(emailService).sendOtp(anyString(), anyString());
@@ -278,6 +354,7 @@ class AuthServiceUnitTest {
         // Assert
         assertNotNull(response);
         assertEquals("Successfully resent OTP, check your inbox", response.message());
+        verify(confirmationOtpRepository, times(1)).deleteByUserEmailAndConfirmedFalse("john@example.com");
         verify(confirmationOtpRepository, times(1)).save(any(ConfirmationOTP.class));
         verify(emailService, times(1)).sendOtp(anyString(), eq("john@example.com"));
     }
@@ -286,8 +363,7 @@ class AuthServiceUnitTest {
     @DisplayName("Should refresh access token successfully")
     void refreshAccessToken_ShouldReturnNewToken() {
         // Arrange
-        RefreshTokenRequestDTO request =
-                new RefreshTokenRequestDTO("valid-refresh-token", "john@example.com");
+        RefreshTokenRequestDTO request = new RefreshTokenRequestDTO("valid-refresh-token", "john@example.com");
         Jwt jwt = mock(Jwt.class);
         UserDetails userDetails = mock(UserDetails.class);
         RefreshToken refreshTokenEntity = new RefreshToken();

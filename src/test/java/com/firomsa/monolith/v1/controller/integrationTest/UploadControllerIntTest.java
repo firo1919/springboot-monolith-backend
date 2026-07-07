@@ -55,7 +55,7 @@ public class UploadControllerIntTest extends AbstractIntegrationTest {
         assertThat(mockMvc.post().uri(BASE_URL + "/presign")
                 .header("Authorization", "Bearer invalid.token.value").contentType(APPLICATION_JSON)
                 .content("{\"filename\":\"avatar.png\",\"contentType\":\"image/png\"}").exchange())
-                        .hasStatus(401);
+                .hasStatus(401);
     }
 
     @Test
