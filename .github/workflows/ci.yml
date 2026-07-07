@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref to save minutes
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Maven module lives under Backend/; the built jar name comes from the POM
+  WORKDIR: Backend
+  JAR_NAME: monolith-0.0.1-SNAPSHOT.jar
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # build + test across JDK 25 vendors, with JaCoCo coverage
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test (JDK 25 / ${{ matrix.distribution }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        distribution: [temurin, zulu]
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25 (${{ matrix.distribution }})
+        uses: actions/setup-java@v4
+        with:
+          distribution: ${{ matrix.distribution }}
+          java-version: '25'
+          cache: maven
+
+      - name: Build and test (with coverage)
+        run: ./mvnw -B --no-transfer-progress verify
+
+      # Publish coverage + reports only once (temurin leg) to avoid duplicates
+      - name: Coverage summary
+        if: ${{ always() && matrix.distribution == 'temurin' }}
+        run: |
+          CSV="target/site/jacoco/jacoco.csv"
+          {
+            echo "## Coverage report"
+            if [ -f "$CSV" ]; then
+              awk -F, 'NR>1 {im+=$4; ic+=$5; bm+=$6; bc+=$7}
+                END {
+                  it=im+ic; bt=bm+bc;
+                  printf "| Metric | Covered | Missed | Coverage |\n";
+                  printf "|---|---|---|---|\n";
+                  printf "| Instructions | %d | %d | %.1f%% |\n", ic, im, (it? ic*100/it : 0);
+                  printf "| Branches | %d | %d | %.1f%% |\n", bc, bm, (bt? bc*100/bt : 0);
+                }' "$CSV"
+            else
+              echo "_No JaCoCo report was produced._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload JaCoCo report
+        if: ${{ always() && matrix.distribution == 'temurin' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: ${{ env.WORKDIR }}/target/site/jacoco/
+          if-no-files-found: warn
+
+      - name: Upload test reports on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-${{ matrix.distribution }}
+          path: ${{ env.WORKDIR }}/target/surefire-reports/
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # build the Docker image and push to GHCR (only on push to main)
+  # ---------------------------------------------------------------------------
+  docker:
+    name: Docker build & push
+    runs-on: ubuntu-latest
+    needs: test
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./Backend
+          file: ./Backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
